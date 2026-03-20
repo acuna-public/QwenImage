@@ -59,12 +59,12 @@ class QwenImage:
 			help = 'Lightning lora (local path or Huggingface model id) for reduce inference steps number and increase details (recommended)',
 		)
 		
-		self.parser.add_argument (
-			'--lightning-lora-weights',
-			type = str,
-			default = None,
-			help = 'Lightning lora weights file name (optional)',
-		)
+		#self.parser.add_argument (
+		#	'--nunchaku-transformer',
+		#	default = None,
+		#	type = str,
+		#	help = 'Nunchaku transformer to reduce CPU memory (recommended)',
+		#)
 		
 		self.parser.add_argument (
 			'--image',
@@ -169,6 +169,9 @@ class QwenImage:
 		else:
 			self.num_inference_steps = self.args['steps']
 		
+		#if self.args['nunchaku_transformer'] is None:
+		#	self.args['nunchaku_transformer'] = 'nunchaku-ai/nunchaku-qwen-image-edit-2509/svdq-fp4_r32-qwen-image-edit-2509-lightningv2.0-4steps.safetensors'
+		
 		if len (self.args['image']) > 0:
 			image_class = QwenImageEdit (self)
 		else:
@@ -220,9 +223,8 @@ class QwenImage:
 			
 			pipe.load_lora_weights (
 				self.args['lightning_lora'],
-				weight_name = self.args['lightning_lora_weights'],
 			)
-			
+		
 		else:
 			pipe = pipe_cls.from_pretrained (
 				self.args['model'],
@@ -230,29 +232,28 @@ class QwenImage:
 				use_safetensors = True,
 				token = self.args['hf_token'],
 			)
-		
 		'''
-		elif self.args['nunchaku_transformer'] is not None:
-
+		elif self.args['nunchaku_transformer'] != '':
+			
 			transformer = NunchakuQwenImageTransformer2DModel.from_pretrained (self.args['nunchaku_transformer'])
-
+			
 			pipe = pipe_cls.from_pretrained (
 				self.args['model'],
 				torch_dtype = self.torch_dtype,
 			)
-
+			
 			if get_gpu_memory () <= 18:
-
+				
 				# use per-layer offloading for low VRAM. This only requires 3-4GB of VRAM.
 				transformer.set_offload (
 					True,
 					use_pin_memory = False,
 					num_blocks_on_gpu = 1,
 				)  # increase num_blocks_on_gpu if you have more VRAM
-
+				
 				pipe.enable_model_cpu_offload ()
 				pipe._exclude_from_cpu_offload.append ('transformer')
-
+			
 			else:
 				pipe.enable_sequential_cpu_offload ()
 		'''

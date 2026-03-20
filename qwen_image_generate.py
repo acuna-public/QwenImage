@@ -1,5 +1,4 @@
 import os
-import sys
 
 import torch
 from diffusers import DiffusionPipeline
@@ -30,10 +29,7 @@ class QwenImageGenerate:
 			self.core.args['model'] = 'Qwen/Qwen-Image'
 		
 		if self.core.args['lightning_lora'] is None:
-			self.core.args['lightning_lora'] = 'lightx2v/Qwen-Image-2512-Lightning'
-		
-		if self.core.args['lightning_lora_weights'] is None:
-			self.core.args['lightning_lora_weights'] = 'Qwen-Image-Lightning-4steps-V1.0-bf16.safetensors'
+			self.core.args['lightning_lora'] = 'lightx2v/Qwen-Image-2512-Lightning/Qwen-Image-Lightning-4steps-V1.0-bf16.safetensors'
 		
 		if self.core.args['ratio'] is not None:
 			self.width = self.aspect_ratios[self.core.args['ratio']][0]

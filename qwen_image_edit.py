@@ -18,10 +18,7 @@ class QwenImageEdit:
 			self.core.args['model'] = 'Qwen/Qwen-Image-Edit'
 		
 		if self.core.args['lightning_lora'] is None:
-			self.core.args['lightning_lora'] = 'lightx2v/Qwen-Image-Edit-2511-Lightning'
-		
-		if self.core.args['lightning_lora_weights'] is None:
-			self.core.args['lightning_lora_weights'] = 'Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors'
+			self.core.args['lightning_lora'] = 'lightx2v/Qwen-Image-Edit-2511-Lightning/Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors'
 		
 		self.pipe = self.core.pipe_init (QwenImageEditPlusPipeline)
 	
