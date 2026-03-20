@@ -53,3 +53,44 @@ In protected environment you need to install all dependencies in [venv](https://
   ```
 
 Where every person image from first folder will be drawn with poses from first poses set, and after that with poses from second poses set etc which can be useful while using different poses sets for every image.
+
+## Reference
+
+```
+  -h, --help            show this help message and exit
+  --model MODEL, -m MODEL
+                        Full path to Qwen Image model. If not set - it will be
+                        downloaded automatically.
+  --width WIDTH         Generated image width (1024 by default). Ignored when
+                        --ratio is set.
+  --height HEIGHT       Generated image height (1024 by default). Ignored when
+                        --ratio is set.
+  --ratio RATIO         Aspect ratio as string (optional). Ignored when
+                        --width and --height are set.
+  --lightning-lora LIGHTNING_LORA
+                        Lightning lora (local path or Huggingface model id)
+                        for reduce inference steps number and increase details
+                        (recommended)
+  --image IMAGE         Images folder of image file (can be multiple)
+  --prompt PROMPT, -p PROMPT
+                        Prompt (if not set - folder with images and prompts in
+                        txt files with same names as every image needed in
+                        main folder)
+  --negative-prompt NEGATIVE_PROMPT, -n NEGATIVE_PROMPT
+                        Negative prompt (optional)
+  --positive-magic POSITIVE_MAGIC
+                        Positive magic tags for more realism
+  --seed SEED, -s SEED  Seed (random by default)
+  --hf-token HF_TOKEN   Huggingface token. Set it if models downloading is
+                        slow or stuck.
+  --cfg-scale CFG_SCALE
+                        CFG scale (LoRA according by default)
+  --steps STEPS         Inference steps number (LoRA according by default)
+  --guidance-scale GUIDANCE_SCALE
+                        Guidance scale (1.0 by default)
+  --images-per-prompt IMAGES_PER_PROMPT
+                        Images number per prompt (1 by default)
+  --output-name OUTPUT_NAME
+                        Result image name if --image is file
+  --verbose, -v         Verbose mode
+```
