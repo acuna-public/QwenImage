@@ -23,7 +23,7 @@ In protected environment you need to install all dependencies in [venv](https://
 
 ## Quick Start
 
-  ### Generate image:
+  ### Generate image
 
   ```
     python qwen_image.py \
