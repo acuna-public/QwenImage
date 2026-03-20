@@ -1,6 +1,7 @@
 import os
 
 import torch
+from PIL import Image
 from diffusers import DiffusionPipeline
 
 class QwenImageGenerate:
@@ -42,10 +43,15 @@ class QwenImageGenerate:
 	
 	def process_images (self):
 		
+		prompt = self.core.args['prompt']
+		
+		if self.core.args['positive_magic'] != '':
+			prompt += ', ' + self.core.args['positive_magic']
+		
 		with torch.inference_mode ():
 			output = self.pipe ({
 				
-				'prompt': self.core.args['prompt'] + ", " + self.core.args['positive_magic'],
+				'prompt': prompt,
 				'generator': torch.Generator (device = self.core.device).manual_seed (self.core.args['seed']),
 				'true_cfg_scale': self.core.true_cfg_scale,
 				'negative_prompt': self.core.args['negative_prompt'],
@@ -58,6 +64,9 @@ class QwenImageGenerate:
 			})
 		
 		return output
+	
+	def load_image (self, path):
+		return Image.open (path).convert ('RGB')
 	
 	def process (self):
 		

@@ -22,7 +22,7 @@ class QwenImageEdit:
 		
 		self.pipe = self.core.pipe_init (QwenImageEditPlusPipeline)
 	
-	def process_images_edit (self, images):
+	def process_images (self, images):
 		
 		with torch.inference_mode ():
 			output = self.pipe ({
@@ -48,9 +48,13 @@ class QwenImageEdit:
 				
 				for filename in files:
 					
-					prompt_file = os.path.abspath (os.path.join (self.core.args['image'][0], filename, '.txt'))
+					prompt_file = os.path.abspath (os.path.join (root, filename + '.txt'))
 					
 					if self.core.args['prompt'] != '' or os.path.exists (prompt_file):
+						
+						root_file = os.path.join (root, filename)
+						stem = pathlib.Path (filename).stem
+						extension = os.path.splitext (filename)[1]
 						
 						if self.core.args['prompt'] != '':
 							self.prompt = self.core.args['prompt']
@@ -58,47 +62,55 @@ class QwenImageEdit:
 							with open (prompt_file) as f:
 								self.prompt = f.read ()
 						
-						if len (self.core.args['image']) > 1:
+						if self.prompt != '':
 							
-							for i in range (1, len (self.core.args['image'])):
+							if len (self.core.args['image']) > 1:
 								
-								for (root2, directories2, files2) in os.walk (self.core.args['image'][i]):
+								for i in range (1, len (self.core.args['image'])):
 									
-									for filename2 in files2:
+									for (root2, directories2, files2) in os.walk (self.core.args['image'][i]):
 										
-										output = self.process_images_edit ([
-											self.load_image (os.path.join (self.core.args['image'][0], filename)),
-											self.load_image (os.path.join (self.core.args['image'][i], filename2)),
-										])
-										
-										stem = pathlib.Path (filename).stem
-										
-										file = os.path.join (os.getcwd (), stem + '_' + filename2)
-										
-										output.images[0].save (file)
-										
-										print (file, ' generated successfully')
-						
-						else:
+										for filename2 in files2:
+											
+											output = self.process_images ([
+												self.core.load_image (root_file),
+												self.core.load_image (os.path.join (root2, filename2)),
+											])
+											
+											folder = os.path.basename (root2)
+											stem2 = pathlib.Path (filename2).stem
+											
+											folder_path = os.path.join (os.getcwd (), folder)
+											
+											if not os.path.exists (folder_path):
+												os.makedirs (folder_path)
+											
+											file = os.path.join (folder_path, stem + '_' + stem2 + extension)
+											
+											output.images[0].save (file)
+											
+											print (file, ' generated successfully')
 							
-							output = self.process_images_edit ([
-								self.load_image (os.path.join (self.core.args['image'][0], filename))
-							])
-							
-							file = os.path.join (os.getcwd (), filename)
-							
-							output.images[0].save (file)
-							
-							print (file, ' generated successfully')
+							else:
+								
+								output = self.process_images ([
+									self.core.load_image (root_file)
+								])
+								
+								file = os.path.join (os.getcwd (), filename)
+								
+								output.images[0].save (file)
+								
+								print (file, ' generated successfully')
 		
 		else:
 			
 			images = []
 			
 			for i in range (0, len (self.core.args['image'])):
-				images.append (load_image (self.core.args['image'][i]).convert ('RGB'))
+				images.append (load_image (self.core.args['image'][i]))
 			
-			output = self.process_images_edit (images)
+			output = self.process_images (images)
 			
 			file = os.path.join (os.getcwd (), self.core.args['output_name'])
 			

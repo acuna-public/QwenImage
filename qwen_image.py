@@ -29,7 +29,7 @@ class QwenImage:
 			'--model', '-m',
 			type = str,
 			default = None,
-			help = 'Full path to Qwen Image model. If not set - it will be downloaded automatically.',
+			help = 'Qwen Image model (local path or Huggingface model id). If not set - it will be downloaded automatically.',
 		)
 		
 		self.parser.add_argument (
@@ -100,13 +100,6 @@ class QwenImage:
 		)
 		
 		self.parser.add_argument (
-			'--hf-token',
-			type = str,
-			default = '',
-			help = 'Huggingface token. Set it if models downloading is slow or stuck.',
-		)
-		
-		self.parser.add_argument (
 			'--cfg-scale',
 			type = float,
 			default = None,
@@ -138,6 +131,13 @@ class QwenImage:
 			'--output-name',
 			default = '',
 			help = 'Result image name if --image is file',
+		)
+		
+		self.parser.add_argument (
+			'--hf-token',
+			type = str,
+			default = '',
+			help = 'Huggingface token. Set it if models downloading is slow or stuck.',
 		)
 		
 		self.parser.add_argument (
