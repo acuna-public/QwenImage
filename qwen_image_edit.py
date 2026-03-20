@@ -3,6 +3,7 @@ import pathlib
 
 import torch
 from diffusers import QwenImageEditPlusPipeline
+from diffusers.utils import load_image
 
 class QwenImageEdit:
 	
@@ -98,7 +99,7 @@ class QwenImageEdit:
 			images = []
 			
 			for i in range (0, len (self.core.args['image'])):
-				images.append (self.load_image (self.core.args['image'][i]).convert ('RGB'))
+				images.append (load_image (self.core.args['image'][i]).convert ('RGB'))
 			
 			output = self.process_images_edit (images)
 			
