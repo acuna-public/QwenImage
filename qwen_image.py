@@ -1,5 +1,6 @@
 import argparse
 import math
+import os
 import sys
 
 import torch
@@ -101,7 +102,7 @@ class QwenImage:
 		self.parser.add_argument (
 			'--hf-token',
 			type = str,
-			default = None,
+			default = '',
 			help = 'Huggingface token. Set it if models downloading is slow or stuck.',
 		)
 		
@@ -151,6 +152,9 @@ class QwenImage:
 		self.args = vars (self.parser.parse_args (
 			args = None if sys.argv[1:] else ['--help']
 		))
+		
+		if self.args['hf_token'] != '':
+			os.environ['HF_TOKEN'] = self.args['hf_token']
 		
 		if torch.cuda.is_available ():
 			self.torch_dtype = torch.bfloat16
