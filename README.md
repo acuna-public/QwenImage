@@ -57,7 +57,6 @@ Where every person image from first folder will be drawn with poses from first p
 ## Reference
 
 ```
-  -h, --help            show this help message and exit
   --model MODEL, -m MODEL
                         Full path to Qwen Image model. If not set - it will be
                         downloaded automatically.
@@ -81,8 +80,6 @@ Where every person image from first folder will be drawn with poses from first p
   --positive-magic POSITIVE_MAGIC
                         Positive magic tags for more realism
   --seed SEED, -s SEED  Seed (random by default)
-  --hf-token HF_TOKEN   Huggingface token. Set it if models downloading is
-                        slow or stuck.
   --cfg-scale CFG_SCALE
                         CFG scale (LoRA according by default)
   --steps STEPS         Inference steps number (LoRA according by default)
@@ -92,5 +89,7 @@ Where every person image from first folder will be drawn with poses from first p
                         Images number per prompt (1 by default)
   --output-name OUTPUT_NAME
                         Result image name if --image is file
+  --hf-token HF_TOKEN   Huggingface token. Set it if models downloading is
+                        slow or stuck.
   --verbose, -v         Verbose mode
 ```
