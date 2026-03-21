@@ -39,7 +39,6 @@ In protected environment you need to install all dependencies in [venv](https://
       --image "C:\QwenExamples\person.jpg" \
       --image "C:\QwenExamples\bedroom.jpg" \
       --prompt "Place person on first image to the room on the second image" \
-      --ratio "16:9"
   ```
 
 #### Images as folders
