@@ -1,9 +1,12 @@
 import argparse
 import math
 import os
+import random
 import sys
-
 import torch
+
+from re import compile
+
 from diffusers import QwenImageTransformer2DModel, FlowMatchEulerDiscreteScheduler
 
 from qwen_image_edit import QwenImageEdit
@@ -20,6 +23,8 @@ class QwenImage:
 	true_cfg_scale = None
 	torch_dtype = None
 	device = None
+	
+	WILDCARD_TOKEN = compile (r'__([-/\\\w]+)__')
 	
 	aspect_ratios = {
 		
@@ -162,7 +167,7 @@ class QwenImage:
 		self.parser.add_argument (
 			'--hf-token',
 			type = str,
-			default = '',
+			default = None,
 			help = 'HuggingFace token. Set it if models downloading is slow or stuck.',
 		)
 		
@@ -179,7 +184,10 @@ class QwenImage:
 			args = None if sys.argv[1:] else ['--help']
 		))
 		
-		if self.args['hf_token'] != '':
+		if self.args['hf_token'] is None:
+			if 'HF_TOKEN' in os.environ:
+				self.args['hf_token'] = os.environ['HF_TOKEN']
+		elif self.args['hf_token'] != '':
 			os.environ['HF_TOKEN'] = self.args['hf_token']
 		
 		if torch.cuda.is_available ():
@@ -310,4 +318,26 @@ class QwenImage:
 		
 		return pipe
 	
+	def process_prompt (self, prompt):
+		
+		next_match = self.WILDCARD_TOKEN.search (prompt)
+		remaining_prompt = prompt
+		
+		while next_match is not None:
+			
+			name, *rest = next_match.groups ()
+			
+			list = []
+			
+			i = random.randrange (len (list))
+			
+			list[i], list[-1] = list[-1], list[i]
+			list.pop ()
+			
+			remaining_prompt = (remaining_prompt[: next_match.start ()] + wildcard + remaining_prompt[next_match.end ():])
+			
+			next_match = self.WILDCARD_TOKEN.search (remaining_prompt)
+		
+		return prompt
+
 QwenImage ().load ()

@@ -51,7 +51,7 @@ In protected environment you need to install all dependencies in [venv](https://
       --prompt "Draw person from first image with pose from second image"
   ```
 
-Where every person image from first folder will be drawn with poses from first poses set, and after that with poses from second poses set etc which can be useful while using different poses sets for every image.
+Where every image from first folder will be drawn with every image from second folder, and after that with every image from third folder, etc, which can be useful for example while drawing images with different poses sets from different folders.
 
 ## Reference
 
