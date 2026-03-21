@@ -14,23 +14,11 @@ class QwenImageGenerate:
 		
 		self.core = core
 		
-		self.aspect_ratios = {
-			
-			'1:1': (1328, 1328),
-			'16:9': (1664, 928),
-			'9:16': (928, 1664),
-			'4:3': (1472, 1104),
-			'3:4': (1104, 1472),
-			'3:2': (1584, 1056),
-			'2:3': (1056, 1584),
-			
-		}
-		
 		if self.core.args['model'] is None:
 			self.core.args['model'] = 'Qwen/Qwen-Image'
 		
 		if self.core.args['lightning_lora'] is None:
-			self.core.args['lightning_lora'] = 'lightx2v/Qwen-Image-2512-Lightning/Qwen-Image-Lightning-4steps-V1.0-bf16.safetensors'
+			self.core.args['lightning_lora'] = 'lightx2v/Qwen-Image-2512-Lightning:Qwen-Image-Lightning-4steps-V1.0-bf16.safetensors'
 		
 		if self.core.args['ratio'] is not None:
 			self.width = self.aspect_ratios[self.core.args['ratio']][0]

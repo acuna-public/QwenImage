@@ -1,5 +1,6 @@
 import os
 import pathlib
+import time
 
 import torch
 from diffusers import QwenImageEditPlusPipeline
@@ -18,7 +19,7 @@ class QwenImageEdit:
 			self.core.args['model'] = 'Qwen/Qwen-Image-Edit'
 		
 		if self.core.args['lightning_lora'] is None:
-			self.core.args['lightning_lora'] = 'lightx2v/Qwen-Image-Edit-2511-Lightning/Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors'
+			self.core.args['lightning_lora'] = 'lightx2v/Qwen-Image-Edit-2511-Lightning:Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors'
 		
 		self.pipe = self.core.pipe_init (QwenImageEditPlusPipeline)
 	
@@ -80,16 +81,12 @@ class QwenImageEdit:
 											folder = os.path.basename (root2)
 											stem2 = pathlib.Path (filename2).stem
 											
-											folder_path = os.path.join (os.getcwd (), folder)
+											folder_path = os.path.join (self.core.argv['output'], folder)
 											
 											if not os.path.exists (folder_path):
 												os.makedirs (folder_path)
 											
-											file = os.path.join (folder_path, stem + '_' + stem2 + extension)
-											
-											output.images[0].save (file)
-											
-											print (file, ' generated successfully')
+											self.save_images (output.images, folder_path, stem + '_' + stem2, extension)
 							
 							else:
 								
@@ -97,23 +94,38 @@ class QwenImageEdit:
 									self.core.load_image (root_file)
 								])
 								
-								file = os.path.join (os.getcwd (), filename)
-								
-								output.images[0].save (file)
-								
-								print (file, ' generated successfully')
+								self.save_images (output.images, self.core.argv['output'], time.time (), 'jpg')
 		
 		else:
 			
 			images = []
 			
-			for i in range (0, len (self.core.args['image'])):
-				images.append (load_image (self.core.args['image'][i]))
+			for image in self.core.args['image']:
+				images.append (load_image (image))
 			
 			output = self.process_images (images)
+			self.save_images (output.images, self.core.argv['output'], time.time (), 'jpg')
+	
+	def save_images (self, images, path, name, extension):
+		
+		if len (images) > 1:
 			
-			file = os.path.join (os.getcwd (), self.core.args['output_name'])
+			i = 0
 			
-			output.images[0].save (file)
+			for image in images:
+				
+				i += 1
+				
+				file = os.path.abspath (os.path.join (path, name + '_' + str (i) + '.' + extension))
+				
+				image.save (file)
+				
+				print (file, ' generated successfully')
+		
+		else:
+			
+			file = os.path.abspath (os.path.join (path, name + '.' + extension))
+			
+			images[0].save (file)
 			
 			print (file, ' generated successfully')

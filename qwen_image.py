@@ -9,8 +9,8 @@ from diffusers import QwenImageTransformer2DModel, FlowMatchEulerDiscreteSchedul
 from qwen_image_edit import QwenImageEdit
 from qwen_image_generate import QwenImageGenerate
 
-#from nunchaku.models.transformers.transformer_qwenimage import NunchakuQwenImageTransformer2DModel
-#from nunchaku.utils import get_gpu_memory, get_precision
+# from nunchaku.models.transformers.transformer_qwenimage import NunchakuQwenImageTransformer2DModel
+# from nunchaku.utils import get_gpu_memory, get_precision
 
 class QwenImage:
 	
@@ -21,6 +21,18 @@ class QwenImage:
 	torch_dtype = None
 	device = None
 	
+	aspect_ratios = {
+		
+		'1:1': (1328, 1328),
+		'16:9': (1664, 928),
+		'9:16': (928, 1664),
+		'4:3': (1472, 1104),
+		'3:4': (1104, 1472),
+		'3:2': (1584, 1056),
+		'2:3': (1056, 1584),
+		
+	}
+	
 	def __init__ (self):
 		
 		self.parser = argparse.ArgumentParser ()
@@ -29,7 +41,7 @@ class QwenImage:
 			'--model', '-m',
 			type = str,
 			default = None,
-			help = 'Qwen Image model (local path or Huggingface model id). If not set - it will be downloaded automatically.',
+			help = 'Qwen Image model (local path or HuggingFace model id). If not set - it will be downloaded automatically.',
 		)
 		
 		self.parser.add_argument (
@@ -57,27 +69,27 @@ class QwenImage:
 			'--lightning-lora',
 			default = None,
 			type = str,
-			help = 'Lightning lora (local path or Huggingface model id) for reduce inference steps number and increase details (recommended)',
+			help = 'Lightning lora (local path or HuggingFace model id) for reduce inference steps number and increase details (recommended)',
 		)
 		
-		#self.parser.add_argument (
+		# self.parser.add_argument (
 		#	'--nunchaku-transformer',
 		#	default = None,
 		#	type = str,
 		#	help = 'Nunchaku transformer to reduce CPU memory (recommended)',
-		#)
+		# )
 		
 		self.parser.add_argument (
 			'--image',
 			action = 'append',
 			default = [],
-			help = 'Images folder of image file (can be multiple)',
+			help = 'Images folder of image file. Can be multiple.',
 		)
 		
 		self.parser.add_argument (
 			'--prompt', '-p',
 			default = '',
-			help = 'Prompt (if not set - folder with images and prompts in txt files with same names as every image needed in main folder)',
+			help = 'Prompt. If not set - folder with images and prompts in txt files with same names as every image needed in main folder.',
 		)
 		
 		self.parser.add_argument (
@@ -90,6 +102,20 @@ class QwenImage:
 			'--positive-magic',
 			default = 'Ultra HD, 4K, cinematic composition',
 			help = 'Positive magic tags for more realism',
+		)
+		
+		self.parser.add_argument (
+			'--lora', '-l',
+			action = 'append',
+			default = [],
+			help = 'LoRA in format path_or_hf_model_id:weights_file:strength[:trigger]. Can be multiple.',
+		)
+		
+		self.parser.add_argument (
+			'--wildcards-path',
+			default = None,
+			type = str,
+			help = 'Path to wildcards folder',
 		)
 		
 		self.parser.add_argument (
@@ -128,16 +154,16 @@ class QwenImage:
 		)
 		
 		self.parser.add_argument (
-			'--output-name',
-			default = '',
-			help = 'Result image name if --image is file',
+			'--output',
+			default = os.getcwd (),
+			help = 'Images output path (current dir by default)',
 		)
 		
 		self.parser.add_argument (
 			'--hf-token',
 			type = str,
 			default = '',
-			help = 'Huggingface token. Set it if models downloading is slow or stuck.',
+			help = 'HuggingFace token. Set it if models downloading is slow or stuck.',
 		)
 		
 		self.parser.add_argument (
@@ -173,7 +199,7 @@ class QwenImage:
 		else:
 			self.num_inference_steps = self.args['steps']
 		
-		#if self.args['nunchaku_transformer'] is None:
+		# if self.args['nunchaku_transformer'] is None:
 		#	self.args['nunchaku_transformer'] = 'nunchaku-ai/nunchaku-qwen-image-edit-2509/svdq-fp4_r32-qwen-image-edit-2509-lightningv2.0-4steps.safetensors'
 		
 		if len (self.args['image']) > 0:
@@ -225,8 +251,11 @@ class QwenImage:
 				token = self.args['hf_token'],
 			)
 			
+			model_id, weights_path = self.args['lightning_lora'].split (':')
+			
 			pipe.load_lora_weights (
-				self.args['lightning_lora'],
+				model_id,
+				weights_path = weights_path,
 			)
 		
 		else:
@@ -236,6 +265,20 @@ class QwenImage:
 				use_safetensors = True,
 				token = self.args['hf_token'],
 			)
+		
+		for lora in self.args['lora']:
+			
+			lora = lora.split (':')
+			
+			pipe.load_lora_weights (
+				lora[0],
+				weights_path = lora[1],
+				token = lora[3] if len (lora) == 4 else ''
+			)
+			
+			pipe.fuse_lora (lora_scale = lora[2])
+			pipe.unload_lora_weights ()
+		
 		'''
 		elif self.args['nunchaku_transformer'] != '':
 			
@@ -266,5 +309,5 @@ class QwenImage:
 		pipe.set_progress_bar_config (disable = None)
 		
 		return pipe
-
+	
 QwenImage ().load ()
