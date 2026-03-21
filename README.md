@@ -58,8 +58,8 @@ Where every person image from first folder will be drawn with poses from first p
 
 ```
   --model MODEL, -m MODEL
-                        Full path to Qwen Image model. If not set - it will be
-                        downloaded automatically.
+                        Qwen Image model (local path or Huggingface model id).
+                        If not set - it will be downloaded automatically.
   --width WIDTH         Generated image width (1024 by default). Ignored when
                         --ratio is set.
   --height HEIGHT       Generated image height (1024 by default). Ignored when
