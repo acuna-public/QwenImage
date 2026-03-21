@@ -38,7 +38,7 @@ In protected environment you need to install all dependencies in [venv](https://
     python qwen_image.py \
       --image "C:\QwenExamples\person.jpg" \
       --image "C:\QwenExamples\bedroom.jpg" \
-      --prompt "Place person on first image to the room on the second image" \
+      --prompt "Place person on first image to the room on the second image"
   ```
 
 #### Images as folders
@@ -48,7 +48,7 @@ In protected environment you need to install all dependencies in [venv](https://
       --image "C:\QwenExamples\Persons" \
       --image "C:\QwenExamples\PosesSet1" \
       --image "C:\QwenExamples\PosesSet2" \
-      --prompt "Draw person from first image with pose from second image" \
+      --prompt "Draw person from first image with pose from second image"
   ```
 
 Where every person image from first folder will be drawn with poses from first poses set, and after that with poses from second poses set etc which can be useful while using different poses sets for every image.
