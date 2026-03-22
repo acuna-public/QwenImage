@@ -1,13 +1,14 @@
 import argparse
+from datetime import datetime
 import math
 import os
 import random
+import re
 import sys
+
 import torch
-
-from re import compile
-
-from diffusers import QwenImageTransformer2DModel, FlowMatchEulerDiscreteScheduler
+from PIL import Image
+from diffusers import QwenImageTransformer2DModel, FlowMatchEulerDiscreteScheduler, QwenImageEditPlusPipeline, DiffusionPipeline
 
 from qwen_image_edit import QwenImageEdit
 from qwen_image_generate import QwenImageGenerate
@@ -23,8 +24,6 @@ class QwenImage:
 	true_cfg_scale = None
 	torch_dtype = None
 	device = None
-	
-	WILDCARD_TOKEN = compile (r'__([-/\\\w]+)__')
 	
 	aspect_ratios = {
 		
@@ -93,8 +92,9 @@ class QwenImage:
 		
 		self.parser.add_argument (
 			'--prompt', '-p',
-			default = '',
-			help = 'Prompt. If not set - folder with images and prompts in txt files with same names as every image needed in main folder.',
+			action = 'append',
+			default = [],
+			help = 'Prompt. Can be multiple. If not set - folder with images and prompts in txt files with same names as every image needed in main folder.',
 		)
 		
 		self.parser.add_argument (
@@ -118,7 +118,7 @@ class QwenImage:
 		
 		self.parser.add_argument (
 			'--wildcards-path',
-			default = None,
+			default = os.getcwd (),
 			type = str,
 			help = 'Path to wildcards folder',
 		)
@@ -159,7 +159,7 @@ class QwenImage:
 		)
 		
 		self.parser.add_argument (
-			'--output',
+			'--output-path',
 			default = os.getcwd (),
 			help = 'Images output path (current dir by default)',
 		)
@@ -172,7 +172,20 @@ class QwenImage:
 		)
 		
 		self.parser.add_argument (
-			'--verbose', '-v',
+			'--debug', '-d',
+			default = 0,
+			help = 'Debug mode'
+		)
+		
+		self.parser.add_argument (
+			'--show-prompt',
+			action = 'store_true',
+			default = False,
+			help = 'Only show prompt (For wildcards generation results check, etc.)'
+		)
+		
+		self.parser.add_argument (
+			'--verbose', '-V',
 			action = 'store_false',
 			default = False,
 			help = 'Verbose mode'
@@ -184,38 +197,44 @@ class QwenImage:
 			args = None if sys.argv[1:] else ['--help']
 		))
 		
-		if self.args['hf_token'] is None:
-			if 'HF_TOKEN' in os.environ:
-				self.args['hf_token'] = os.environ['HF_TOKEN']
-		elif self.args['hf_token'] != '':
-			os.environ['HF_TOKEN'] = self.args['hf_token']
-		
-		if torch.cuda.is_available ():
-			self.torch_dtype = torch.bfloat16
-			self.device = 'cuda'
+		if self.args['show_prompt'] is False:
+			
+			if self.args['hf_token'] is None:
+				if 'HF_TOKEN' in os.environ:
+					self.args['hf_token'] = os.environ['HF_TOKEN']
+			elif self.args['hf_token'] != '':
+				os.environ['HF_TOKEN'] = self.args['hf_token']
+			
+			if torch.cuda.is_available ():
+				self.torch_dtype = torch.bfloat16
+				self.device = 'cuda'
+			else:
+				self.torch_dtype = torch.float32
+				self.device = 'cpu'
+			
+			if self.args['cfg_scale'] is None:
+				self.true_cfg_scale = 4.0 if self.args['lightning_lora'] == '' else 1.0
+			else:
+				self.true_cfg_scale = self.args['cfg_scale']
+			
+			if self.args['steps'] is None:
+				self.num_inference_steps = 50 if self.args['lightning_lora'] == '' else 4
+			else:
+				self.num_inference_steps = self.args['steps']
+			
+			# if self.args['nunchaku_transformer'] is None:
+			#	self.args['nunchaku_transformer'] = 'nunchaku-ai/nunchaku-qwen-image-edit-2509/svdq-fp4_r32-qwen-image-edit-2509-lightningv2.0-4steps.safetensors'
+			
+			if len (self.args['image']) > 0:
+				image_class = QwenImageEdit (self, pipeline_class = QwenImageEditPlusPipeline)
+			else:
+				image_class = QwenImageGenerate (self, pipeline_class = DiffusionPipeline)
+			
+			image_class.process ()
+			
 		else:
-			self.torch_dtype = torch.float32
-			self.device = 'cpu'
-		
-		if self.args['cfg_scale'] is None:
-			self.true_cfg_scale = 4.0 if self.args['lightning_lora'] == '' else 1.0
-		else:
-			self.true_cfg_scale = self.args['cfg_scale']
-		
-		if self.args['steps'] is None:
-			self.num_inference_steps = 50 if self.args['lightning_lora'] == '' else 4
-		else:
-			self.num_inference_steps = self.args['steps']
-		
-		# if self.args['nunchaku_transformer'] is None:
-		#	self.args['nunchaku_transformer'] = 'nunchaku-ai/nunchaku-qwen-image-edit-2509/svdq-fp4_r32-qwen-image-edit-2509-lightningv2.0-4steps.safetensors'
-		
-		if len (self.args['image']) > 0:
-			image_class = QwenImageEdit (self)
-		else:
-			image_class = QwenImageGenerate (self)
-		
-		image_class.process ()
+			for prompt in self.args['prompt']:
+				print (self.process_prompt (prompt))
 	
 	def pipe_init (self, pipe_cls):
 		
@@ -312,32 +331,105 @@ class QwenImage:
 			else:
 				pipe.enable_sequential_cpu_offload ()
 		'''
+		
 		pipe = pipe.to (self.device)
 		
 		pipe.set_progress_bar_config (disable = None)
 		
 		return pipe
 	
+	def load_image (self, path):
+		return Image.open (path).convert ('RGB')
+	
+	def save_images (self, pipes, path, name, extension):
+		
+		i = 0
+		
+		for pipe in pipes:
+			
+			i += 1
+			
+			i2 = 0
+			
+			for image in pipe['images']:
+				
+				i2 += 1
+				
+				file = os.path.abspath (os.path.join (path, name + '_' + str (i) + '_' + str (i2) + extension))
+				
+				if self.args['debug'] == 0:
+					image.save (file)
+				
+				print (file, 'generated successfully')
+	
 	def process_prompt (self, prompt):
 		
-		next_match = self.WILDCARD_TOKEN.search (prompt)
-		remaining_prompt = prompt
+		# Wildcards
 		
-		while next_match is not None:
-			
-			name, *rest = next_match.groups ()
-			
-			list = []
-			
-			i = random.randrange (len (list))
-			
-			list[i], list[-1] = list[-1], list[i]
-			list.pop ()
-			
-			remaining_prompt = (remaining_prompt[: next_match.start ()] + wildcard + remaining_prompt[next_match.end ():])
-			
-			next_match = self.WILDCARD_TOKEN.search (remaining_prompt)
+		pat = re.compile (r'__(.+?)__')
 		
+		pos = 0
+		
+		while m := pat.search (prompt, pos):
+			
+			pos = m.start () + 1
+			
+			file = os.path.abspath (os.path.join (self.args['wildcards_path'], m[1] + '.txt'))
+			
+			if os.path.exists (file):
+				line = self.random_line (file)
+				prompt = prompt.replace (m[0], line, 1)
+			else:
+				raise ValueError ('Wildcard file ' + file + ' not found')
+		
+		# OR clause
+		
+		pat = re.compile (r'\{(.+?)\}')
+		
+		pos = 0
+		
+		while m := pat.search (prompt, pos):
+			
+			pos = m.start () + 1
+			
+			text = m[1].split ('|')
+			
+			line = text[random.randrange (0, len (text))]
+			prompt = self.process_prompt (prompt.replace (m[0], line, 1))
+			
 		return prompt
+	
+	def get_prompts (self, file):
+		
+		prompts = []
+		
+		if len (self.args['prompt']) > 0:
+			
+			for prompt in self.args['prompt']:
+				prompts.append (prompt)
+			
+		else:
+			
+			file = open (file, 'rb')
+			
+			for line in file:
+				prompts.append (line.strip ().decode ('utf-8'))
+			
+		return prompts
+	
+	def random_line (self, file) -> str:
+		
+		file = open (file, 'rb')
+		text = []
+		
+		for line in file:
+			text.append (line.strip ())
+		
+		file.close ()
+		
+		return text[random.randrange (0, len (text))].decode ('utf-8')
+	
+	def get_date (self) -> str:
+		return datetime.today ().strftime ('%Y%m%d%H%M%S%f')
 
 QwenImage ().load ()

@@ -1,17 +1,15 @@
 import os
 import pathlib
-import time
 
 import torch
-from diffusers import QwenImageEditPlusPipeline
 from diffusers.utils import load_image
 
 class QwenImageEdit:
 	
 	pipe = None
-	prompt = None
+	prompts = []
 	
-	def __init__ (self, core):
+	def __init__ (self, core, **kwargs):
 		
 		self.core = core
 		
@@ -21,25 +19,34 @@ class QwenImageEdit:
 		if self.core.args['lightning_lora'] is None:
 			self.core.args['lightning_lora'] = 'lightx2v/Qwen-Image-Edit-2511-Lightning:Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors'
 		
-		self.pipe = self.core.pipe_init (QwenImageEditPlusPipeline)
-	
+		if self.core.args['debug'] == 0:
+			self.pipe = self.core.pipe_init (kwargs.pop ('pipeline_class'))
+		
 	def process_images (self, images):
 		
-		with torch.inference_mode ():
-			output = self.pipe ({
-				
-				'image': images,
-				'prompt': self.prompt,
-				'generator': torch.Generator (device = self.core.device).manual_seed (self.core.args['seed']),
-				'true_cfg_scale': self.core.true_cfg_scale,
-				'negative_prompt': self.core.args['negative_prompt'],
-				'num_inference_steps': self.core.num_inference_steps,
-				'guidance_scale': self.core.args['guidance_scale'],
-				'num_images_per_prompt': self.core.args['images_per_prompt'],
-				
-			})
+		pipes = []
 		
-		return output
+		for prompt in self.prompts:
+			
+			if self.core.args['debug'] == 0:
+				
+				with torch.inference_mode ():
+					pipes.append (self.pipe ({
+						
+						'image': images,
+						'prompt': self.core.process_prompt (prompt),
+						'generator': torch.Generator (device = self.core.device).manual_seed (self.core.args['seed']),
+						'true_cfg_scale': self.core.true_cfg_scale,
+						'negative_prompt': self.core.args['negative_prompt'],
+						'num_inference_steps': self.core.num_inference_steps,
+						'guidance_scale': self.core.args['guidance_scale'],
+						'num_images_per_prompt': self.core.args['images_per_prompt'],
+						
+					}))
+			else:
+				pipes.append ({'images': [0, 1]})
+		
+		return pipes
 	
 	def process (self):
 		
@@ -51,19 +58,15 @@ class QwenImageEdit:
 					
 					prompt_file = os.path.abspath (os.path.join (root, filename + '.txt'))
 					
-					if self.core.args['prompt'] != '' or os.path.exists (prompt_file):
+					if len (self.core.args['prompt']) > 0 or os.path.exists (prompt_file):
 						
 						root_file = os.path.join (root, filename)
 						stem = pathlib.Path (filename).stem
 						extension = os.path.splitext (filename)[1]
 						
-						if self.core.args['prompt'] != '':
-							self.prompt = self.core.args['prompt']
-						else:
-							with open (prompt_file) as f:
-								self.prompt = f.read ()
+						self.prompts = self.core.get_prompts (prompt_file)
 						
-						if self.prompt != '':
+						if len (self.prompts) > 0:
 							
 							if len (self.core.args['image']) > 1:
 								
@@ -73,7 +76,7 @@ class QwenImageEdit:
 										
 										for filename2 in files2:
 											
-											output = self.process_images ([
+											pipes = self.process_images ([
 												self.core.load_image (root_file),
 												self.core.load_image (os.path.join (root2, filename2)),
 											])
@@ -81,21 +84,25 @@ class QwenImageEdit:
 											folder = os.path.basename (root2)
 											stem2 = pathlib.Path (filename2).stem
 											
-											folder_path = os.path.join (self.core.argv['output'], folder)
+											folder_path = os.path.abspath (os.path.join (self.core.args['output_path'], folder))
 											
 											if not os.path.exists (folder_path):
 												os.makedirs (folder_path)
 											
-											self.save_images (output.images, folder_path, stem + '_' + stem2, extension)
-							
+											self.core.save_images (pipes, folder_path, stem + '_' + stem2, extension)
+										
+										break
+										
 							else:
 								
-								output = self.process_images ([
+								pipes = self.process_images ([
 									self.core.load_image (root_file)
 								])
 								
-								self.save_images (output.images, self.core.argv['output'], time.time (), 'jpg')
-		
+								self.core.save_images (pipes, self.core.args['output_path'], self.core.get_date (), '.jpg')
+				
+				break
+				
 		else:
 			
 			images = []
@@ -103,29 +110,8 @@ class QwenImageEdit:
 			for image in self.core.args['image']:
 				images.append (load_image (image))
 			
-			output = self.process_images (images)
-			self.save_images (output.images, self.core.argv['output'], time.time (), 'jpg')
-	
-	def save_images (self, images, path, name, extension):
-		
-		if len (images) > 1:
+			for prompt in self.core.args['prompt']:
+				self.prompts.append (prompt)
 			
-			i = 0
-			
-			for image in images:
-				
-				i += 1
-				
-				file = os.path.abspath (os.path.join (path, name + '_' + str (i) + '.' + extension))
-				
-				image.save (file)
-				
-				print (file, ' generated successfully')
-		
-		else:
-			
-			file = os.path.abspath (os.path.join (path, name + '.' + extension))
-			
-			images[0].save (file)
-			
-			print (file, ' generated successfully')
+			pipes = self.process_images (images)
+			self.core.save_images (pipes, self.core.args['output_path'], self.core.get_date (), '.jpg')

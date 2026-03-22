@@ -4,10 +4,11 @@ QwenImage is a CLI version for working with **Qwen Image** and **Qwen Image Edit
 
 ## Scopes
 
-- **Qwen Image** and **Qwen Image Edit** support for working with several images pipelines
+- Qwen Image and Qwen Image Edit support for working with several images pipelines
 - Lighting LoRA support by default for reduce steps and encrease quality
 - Aspect ratio support (`--ratio` argument)
 - Seed, steps number, CFG Ratio, etc. support
+- Wildcards support including parentiness and OR clause
 - Automatic Huggingface models downloading
 
 ## Install
@@ -42,6 +43,14 @@ In protected environment you need to install all dependencies in [venv](https://
   ```
 
 #### Images as folders
+
+  ```
+    python qwen_image.py \
+      --image "C:\QwenExamples\Persons" \
+      --prompt "Restore this image quality"
+  ```
+
+Every image in this folder will be redrawn by given prompt.
 
   ```
     python qwen_image.py \
