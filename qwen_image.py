@@ -1,12 +1,12 @@
 import argparse
-from datetime import datetime
 import math
 import os
 import random
 import re
 import sys
-
 import torch
+
+from datetime import datetime
 from PIL import Image
 from diffusers import QwenImageTransformer2DModel, FlowMatchEulerDiscreteScheduler, QwenImageEditPlusPipeline, DiffusionPipeline
 
@@ -20,9 +20,12 @@ class QwenImage:
 	
 	args = None
 	parser = None
+	width = []
+	height = []
 	num_inference_steps = None
 	true_cfg_scale = None
 	torch_dtype = None
+	prompts = []
 	device = None
 	
 	aspect_ratios = {
@@ -49,41 +52,6 @@ class QwenImage:
 		)
 		
 		self.parser.add_argument (
-			'--width',
-			type = int,
-			default = 1024,
-			help = 'Generated image width (1024 by default). Ignored when --ratio is set.',
-		)
-		
-		self.parser.add_argument (
-			'--height',
-			type = int,
-			default = 1024,
-			help = 'Generated image height (1024 by default). Ignored when --ratio is set.',
-		)
-		
-		self.parser.add_argument (
-			'--ratio',
-			type = str,
-			default = None,
-			help = 'Aspect ratio as string (optional). Ignored when --width and --height are set.',
-		)
-		
-		self.parser.add_argument (
-			'--lightning-lora',
-			default = None,
-			type = str,
-			help = 'Lightning lora (local path or HuggingFace model id) for reduce inference steps number and increase details (recommended)',
-		)
-		
-		# self.parser.add_argument (
-		#	'--nunchaku-transformer',
-		#	default = None,
-		#	type = str,
-		#	help = 'Nunchaku transformer to reduce CPU memory (recommended)',
-		# )
-		
-		self.parser.add_argument (
 			'--image',
 			action = 'append',
 			default = [],
@@ -106,7 +74,7 @@ class QwenImage:
 		self.parser.add_argument (
 			'--positive-magic',
 			default = 'Ultra HD, 4K, cinematic composition',
-			help = 'Positive magic tags for more realism',
+			help = 'Positive magic tags for more realism. Appends to every prompt',
 		)
 		
 		self.parser.add_argument (
@@ -115,6 +83,41 @@ class QwenImage:
 			default = [],
 			help = 'LoRA in format path_or_hf_model_id:weights_file:strength[:trigger]. Can be multiple.',
 		)
+		
+		self.parser.add_argument (
+			'--width',
+			action = 'append',
+			default = [],
+			help = 'Generated image width (1024 by default). Ignored when --ratio is set.',
+		)
+		
+		self.parser.add_argument (
+			'--height',
+			action = 'append',
+			default = [],
+			help = 'Generated image height (1024 by default). Ignored when --ratio is set.',
+		)
+		
+		self.parser.add_argument (
+			'--ratio',
+			action = 'append',
+			default = [],
+			help = 'Aspect ratio as string (optional). Ignored when --width and --height are set.',
+		)
+		
+		self.parser.add_argument (
+			'--lightning-lora',
+			default = None,
+			type = str,
+			help = 'Lightning LoRA (local path or HuggingFace model id) for reduce inference steps number and increase details (recommended)',
+		)
+		
+		# self.parser.add_argument (
+		#	  '--nunchaku-transformer',
+		#	  default = None,
+		#	  type = str,
+		#	  help = 'Nunchaku transformer to reduce CPU memory',
+		# )
 		
 		self.parser.add_argument (
 			'--wildcards-path',
@@ -222,6 +225,27 @@ class QwenImage:
 			else:
 				self.num_inference_steps = self.args['steps']
 			
+			if len (self.args['ratio']) > 0:
+				
+				for i in range (0, len (self.args['ratio'])):
+					
+					ratio = self.aspect_ratios[self.args['ratio'][i]]
+					
+					self.width.append (ratio[0])
+					self.height.append (ratio[1])
+			
+			elif self.args['width'] and self.args['height']:
+				
+				for i in range (0, len (self.args['width'])):
+					
+					self.width.append (self.args['width'][i])
+					self.height.append (self.args['height'][i])
+			
+			else:
+				
+				self.width.append (1024)
+				self.height.append (1024)
+			
 			# if self.args['nunchaku_transformer'] is None:
 			#	self.args['nunchaku_transformer'] = 'nunchaku-ai/nunchaku-qwen-image-edit-2509/svdq-fp4_r32-qwen-image-edit-2509-lightningv2.0-4steps.safetensors'
 			
@@ -231,7 +255,7 @@ class QwenImage:
 				image_class = QwenImageGenerate (self, pipeline_class = DiffusionPipeline)
 			
 			image_class.process ()
-			
+		
 		else:
 			for prompt in self.args['prompt']:
 				print (self.process_prompt (prompt))
@@ -392,30 +416,12 @@ class QwenImage:
 			
 			pos = m.start () + 1
 			
-			text = m[1].split ('|')
+			text = str (m[1]).split ('|')
 			
 			line = text[random.randrange (0, len (text))]
 			prompt = self.process_prompt (prompt.replace (m[0], line, 1))
-			
+		
 		return prompt
-	
-	def get_prompts (self, file):
-		
-		prompts = []
-		
-		if len (self.args['prompt']) > 0:
-			
-			for prompt in self.args['prompt']:
-				prompts.append (prompt)
-			
-		else:
-			
-			file = open (file, 'rb')
-			
-			for line in file:
-				prompts.append (line.strip ().decode ('utf-8'))
-			
-		return prompts
 	
 	def random_line (self, file) -> str:
 		

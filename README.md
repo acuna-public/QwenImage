@@ -8,7 +8,9 @@ QwenImage is a CLI version for working with **Qwen Image** and **Qwen Image Edit
 - Lighting LoRA support by default for reduce steps and encrease quality
 - Aspect ratio support (`--ratio` argument)
 - Seed, steps number, CFG Ratio, etc. support
+- Multiple LoRAs support with strength and trigger words
 - Wildcards support including parentiness and OR clause
+- Multiple prompts support for one pipeline images generation
 - Automatic Huggingface models downloading
 
 ## Install

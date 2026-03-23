@@ -1,13 +1,8 @@
-import os
-
 import torch
 
 class QwenImageGenerate:
 	
 	pipe = None
-	width = None
-	height = None
-	prompts = []
 	
 	def __init__ (self, core, **kwargs):
 		
@@ -19,51 +14,67 @@ class QwenImageGenerate:
 		if self.core.args['lightning_lora'] is None:
 			self.core.args['lightning_lora'] = 'lightx2v/Qwen-Image-2512-Lightning:Qwen-Image-Lightning-4steps-V1.0-bf16.safetensors'
 		
-		if self.core.args['ratio'] is not None:
-			self.width = self.core.aspect_ratios[self.core.args['ratio']][0]
-			self.height = self.core.aspect_ratios[self.core.args['ratio']][1]
-		else:
-			self.width = self.core.args['width']
-			self.height = self.core.args['height']
-		
 		if self.core.args['debug'] == 0:
 			self.pipe = self.core.pipe_init (kwargs.pop ('pipeline_class'))
 	
 	def process_images (self):
 		
-		pipes = []
+		pipes = {}
 		
-		for prompt in self.prompts:
+		self.core.sizes = []
+		
+		for i in range (0, len (self.core.width)):
 			
-			if self.core.args['positive_magic'] != '':
-				prompt += ', ' + self.core.args['positive_magic']
+			width = self.core.width[i]
 			
-			if self.core.args['debug'] == 0:
+			if width not in pipes:
+				pipes[width] = []
+			
+			pipe = pipes[width]
+			
+			self.core.sizes.append ([self.core.width[i], self.core.height[i]])
+			
+			for prompt in self.core.prompts:
 				
-				with torch.inference_mode ():
-					pipes.append (self.pipe ({
-						
-						'prompt': self.core.process_prompt (prompt),
-						'generator': torch.Generator (device = self.core.device).manual_seed (self.core.args['seed']),
-						'true_cfg_scale': self.core.true_cfg_scale,
-						'negative_prompt': self.core.args['negative_prompt'],
-						'num_inference_steps': self.core.num_inference_steps,
-						'guidance_scale': self.core.args['guidance_scale'],
-						'num_images_per_prompt': self.core.args['images_per_prompt'],
-						'width': self.width,
-						'height': self.height,
-						
-					}))
-			else:
-				pipes.append ({ 'images': [0, 1] })
-		
+				if self.core.args['positive_magic'] != '':
+					prompt += ', ' + self.core.args['positive_magic']
+				
+				if self.core.args['debug'] == 0:
+					
+					with torch.inference_mode ():
+						pipe.append (self.pipe ({
+							
+							'width': self.core.width[i],
+							'height': self.core.height[i],
+							'prompt': self.core.process_prompt (prompt),
+							'negative_prompt': self.core.args['negative_prompt'],
+							'true_cfg_scale': self.core.true_cfg_scale,
+							'num_inference_steps': self.core.num_inference_steps,
+							'guidance_scale': self.core.args['guidance_scale'],
+							'num_images_per_prompt': self.core.args['images_per_prompt'],
+							'generator': torch.Generator (device = self.core.device).manual_seed (self.core.args['seed']),
+							
+						}))
+					
+				else:
+					pipe.append ({ 'images': [0, 1] })
+				
+			pipes[width] = pipe
+			
 		return pipes
 	
 	def process (self):
 		
-		for prompt in self.core.args['prompt']:
-			self.prompts.append (prompt)
+		self.core.prompts = self.core.args['prompt']
 		
 		pipes = self.process_images ()
 		
-		self.core.save_images (pipes, self.core.args['output_path'], self.core.get_date (), '.jpg')
+		i = 0
+		
+		for width in pipes:
+			
+			sizes = self.core.sizes[i]
+			
+			i += 1
+			
+			self.core.save_images (pipes[width], self.core.args['output_path'], self.core.get_date () + '_' + str (sizes[0]) + '_' + str (sizes[1]), '.jpg')
