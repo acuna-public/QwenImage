@@ -8,13 +8,13 @@ from datetime import datetime
 
 import torch
 from PIL import Image
-from diffusers import DDPMScheduler, DPMSolverMultistepScheduler, DiffusionPipeline, FlowMatchEulerDiscreteScheduler, GGUFQuantizationConfig, QwenImageEditPlusPipeline, QwenImageTransformer2DModel, UniPCMultistepScheduler, DDIMScheduler, EulerDiscreteScheduler, EulerAncestralDiscreteScheduler, KDPM2AncestralDiscreteScheduler, HeunDiscreteScheduler, LMSDiscreteScheduler, DPMSolverSinglestepScheduler, KDPM2DiscreteScheduler
+from diffusers import AutoencoderKL, DDIMScheduler, DDPMScheduler, DPMSolverMultistepScheduler, DPMSolverSinglestepScheduler, DiffusionPipeline, EulerAncestralDiscreteScheduler, EulerDiscreteScheduler, FlowMatchEulerDiscreteScheduler, GGUFQuantizationConfig, HeunDiscreteScheduler, KDPM2AncestralDiscreteScheduler, KDPM2DiscreteScheduler, LMSDiscreteScheduler, QwenImageEditPlusPipeline, QwenImageTransformer2DModel, UniPCMultistepScheduler
 
 from qwen_image_edit import QwenImageEdit
 from qwen_image_generate import QwenImageGenerate
 
-# from nunchaku import NunchakuQwenImageTransformer2DModel
-# from nunchaku.utils import get_gpu_memory
+from nunchaku import NunchakuQwenImageTransformer2DModel
+from nunchaku.utils import get_gpu_memory
 
 class QwenImage:
 	
@@ -121,7 +121,7 @@ class QwenImage:
 		
 		self.parser.add_argument (
 			'--nunchaku-transformer',
-			default = '',
+			default = None,
 			type = str,
 			help = 'Nunchaku transformer to reduce CPU memory',
 		)
@@ -332,6 +332,7 @@ class QwenImage:
 	def pipe_init (self, pipe_cls):
 		
 		if self.args['gguf'] != '':
+			
 			transformer = QwenImageTransformer2DModel.from_single_file (
 				self.args['gguf'],
 				subfolder = 'transformer',
@@ -339,12 +340,33 @@ class QwenImage:
 				torch_dtype = self.torch_dtype,
 				config = self.args['model'],
 			)
+			
+		elif self.args['nunchaku_transformer'] != '':
+			
+			transformer = NunchakuQwenImageTransformer2DModel.from_pretrained (self.args['nunchaku_transformer'])
+			
+			if get_gpu_memory () <= 18:
+				
+				# use per-layer offloading for low VRAM. This only requires 3-4GB of VRAM.
+				transformer.set_offload (
+					True,
+					use_pin_memory = False,
+					num_blocks_on_gpu = 1,
+				)  # increase num_blocks_on_gpu if you have more VRAM
+			
 		else:
+			
 			transformer = QwenImageTransformer2DModel.from_pretrained (
 				self.args['model'],
 				subfolder = 'transformer',
 				torch_dtype = self.torch_dtype,
 			)
+		
+		vae = AutoencoderKL.from_pretrained (
+			self.args['model'],
+			subfolder = 'vae',
+			torch_dtype = self.torch_dtype
+		)
 		
 		if self.args['lightning_lora'] != '':
 			config = {
@@ -365,16 +387,25 @@ class QwenImage:
 				
 			}
 		else:
-			config = {}
+			config = { }
 		
 		pipe = pipe_cls.from_pretrained (
 			self.args['model'],
 			transformer = transformer,
+			vae = vae,
 			scheduler = self.get_scheduler (config),
 			use_safetensors = True,
 			torch_dtype = self.torch_dtype,
 			token = self.args['hf_token'],
 		)
+		
+		if get_gpu_memory () <= 18:
+			
+			pipe.enable_model_cpu_offload ()
+			pipe._exclude_from_cpu_offload.append ('transformer')
+		
+		else:
+			pipe.enable_sequential_cpu_offload ()
 		
 		if self.args['lightning_lora'] != '':
 			
@@ -385,33 +416,6 @@ class QwenImage:
 				weights_path = weights_path,
 			)
 		
-		'''
-		
-		elif self.args['nunchaku_transformer'] != '':
-			
-			transformer = NunchakuQwenImageTransformer2DModel.from_pretrained (self.args['nunchaku_transformer'])
-			
-			pipe = pipe_cls.from_pretrained (
-				self.args['model'],
-				torch_dtype = self.torch_dtype,
-			)
-			
-			if get_gpu_memory () <= 18:
-				
-				# use per-layer offloading for low VRAM. This only requires 3-4GB of VRAM.
-				transformer.set_offload (
-					True,
-					use_pin_memory = False,
-					num_blocks_on_gpu = 1,
-				)  # increase num_blocks_on_gpu if you have more VRAM
-				
-				pipe.enable_model_cpu_offload ()
-				pipe._exclude_from_cpu_offload.append ('transformer')
-			
-			else:
-				pipe.enable_sequential_cpu_offload ()
-		
-		'''
 		for lora in self.args['lora']:
 			
 			lora = lora.split (':')

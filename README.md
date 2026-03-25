@@ -19,8 +19,7 @@ QwenImage is a CLI version for working with **Qwen Image** and **Qwen Image Edit
 
   ```
   git clone https://github.com/acuna-public/QwenImage.git
-  ```
-  ```
+  cd QwenImage
   pip install -r requirements.txt
   ```
 
