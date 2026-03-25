@@ -4,17 +4,17 @@ import os
 import random
 import re
 import sys
-import torch
-
 from datetime import datetime
+
+import torch
 from PIL import Image
-from diffusers import QwenImageTransformer2DModel, FlowMatchEulerDiscreteScheduler, QwenImageEditPlusPipeline, DiffusionPipeline
+from diffusers import DDPMScheduler, DPMSolverMultistepScheduler, DiffusionPipeline, FlowMatchEulerDiscreteScheduler, GGUFQuantizationConfig, QwenImageEditPlusPipeline, QwenImageTransformer2DModel, UniPCMultistepScheduler, DDIMScheduler, EulerDiscreteScheduler, EulerAncestralDiscreteScheduler, KDPM2AncestralDiscreteScheduler, HeunDiscreteScheduler, LMSDiscreteScheduler, DPMSolverSinglestepScheduler, KDPM2DiscreteScheduler
 
 from qwen_image_edit import QwenImageEdit
 from qwen_image_generate import QwenImageGenerate
 
-# from nunchaku.models.transformers.transformer_qwenimage import NunchakuQwenImageTransformer2DModel
-# from nunchaku.utils import get_gpu_memory, get_precision
+# from nunchaku import NunchakuQwenImageTransformer2DModel
+# from nunchaku.utils import get_gpu_memory
 
 class QwenImage:
 	
@@ -106,18 +106,25 @@ class QwenImage:
 		)
 		
 		self.parser.add_argument (
+			'--gguf',
+			default = '',
+			type = str,
+			help = 'GGUF file path or url',
+		)
+		
+		self.parser.add_argument (
 			'--lightning-lora',
 			default = None,
 			type = str,
 			help = 'Lightning LoRA (local path or HuggingFace model id) for reduce inference steps number and increase details (recommended)',
 		)
 		
-		# self.parser.add_argument (
-		#	  '--nunchaku-transformer',
-		#	  default = None,
-		#	  type = str,
-		#	  help = 'Nunchaku transformer to reduce CPU memory',
-		# )
+		self.parser.add_argument (
+			'--nunchaku-transformer',
+			default = '',
+			type = str,
+			help = 'Nunchaku transformer to reduce CPU memory',
+		)
 		
 		self.parser.add_argument (
 			'--wildcards-path',
@@ -131,6 +138,13 @@ class QwenImage:
 			type = int,
 			default = 0,
 			help = 'Seed (random by default)',
+		)
+		
+		self.parser.add_argument (
+			'--scheduler',
+			type = str,
+			default = 'DPM++ 2M Karras',
+			help = 'Scheduler name (DPM++ 2M Karras by default)',
 		)
 		
 		self.parser.add_argument (
@@ -246,9 +260,6 @@ class QwenImage:
 				self.width.append (1024)
 				self.height.append (1024)
 			
-			# if self.args['nunchaku_transformer'] is None:
-			#	self.args['nunchaku_transformer'] = 'nunchaku-ai/nunchaku-qwen-image-edit-2509/svdq-fp4_r32-qwen-image-edit-2509-lightningv2.0-4steps.safetensors'
-			
 			if len (self.args['image']) > 0:
 				image_class = QwenImageEdit (self, pipeline_class = QwenImageEditPlusPipeline)
 			else:
@@ -260,30 +271,91 @@ class QwenImage:
 			for prompt in self.args['prompt']:
 				print (self.process_prompt (prompt))
 	
+	def get_scheduler (self, config):
+		
+		schedulers_cls = {
+			
+			'DDIM': DDIMScheduler,
+			'DDPM': DDPMScheduler,
+			'DPM++ 2M': DPMSolverMultistepScheduler,
+			'DPM++ 2M Karras': DPMSolverMultistepScheduler,
+			'DPM++ SDE': DPMSolverSinglestepScheduler,
+			'DPM++ SDE Karras': DPMSolverSinglestepScheduler,
+			'DPM2': KDPM2DiscreteScheduler,
+			'DPM2 Karras': KDPM2DiscreteScheduler,
+			'DPM2 a': KDPM2AncestralDiscreteScheduler,
+			'DPM2 a Karras': KDPM2AncestralDiscreteScheduler,
+			'Euler': EulerDiscreteScheduler,
+			'Euler a': EulerAncestralDiscreteScheduler,
+			'Heun': HeunDiscreteScheduler,
+			'LMS': LMSDiscreteScheduler,
+			'FlowMatch': FlowMatchEulerDiscreteScheduler,
+			
+		}
+		
+		use_sigmas = [
+			
+			'DPM++ 2M Karras',
+			'DPM++ 2M SDE Karras',
+			'DPM++ SDE Karras',
+			'DPM2 Karras',
+			'DPM2 a Karras',
+			'LMS Karras',
+		
+		]
+		
+		config['use_karras_sigmas'] = True if self.args['scheduler'] in use_sigmas else False
+		
+		if self.args['scheduler'] in schedulers_cls:
+			scheduler = schedulers_cls[self.args['scheduler']].from_config (config)
+		elif self.args['scheduler'] == 'UniPC':
+			scheduler = UniPCMultistepScheduler.from_pretrained (self.args['model'])
+		else:
+			
+			schedulers_algs = {
+				
+				'DPM++ 2M SDE': 'sde-dpmsolver++',
+				'DPM++ 2M SDE Karras': 'sde-dpmsolver++',
+				'DPM++ SDE Karras': 'sde-dpmsolver++',
+				
+			}
+			
+			scheduler = DPMSolverMultistepScheduler.from_config (config)
+			
+			if self.args['scheduler'] in schedulers_algs:
+				scheduler.config.algorithm_type = schedulers_algs[self.args['scheduler']]
+			else:
+				scheduler.config.algorithm_type = self.args['scheduler']
+		
+		return scheduler
+	
 	def pipe_init (self, pipe_cls):
 		
-		if self.args['lightning_lora'] != '':
-			
+		if self.args['gguf'] != '':
+			transformer = QwenImageTransformer2DModel.from_single_file (
+				self.args['gguf'],
+				subfolder = 'transformer',
+				quantization_config = GGUFQuantizationConfig (compute_dtype = self.torch_dtype),
+				torch_dtype = self.torch_dtype,
+				config = self.args['model'],
+			)
+		else:
 			transformer = QwenImageTransformer2DModel.from_pretrained (
 				self.args['model'],
 				subfolder = 'transformer',
-				use_safetensors = True,
 				torch_dtype = self.torch_dtype,
-				token = self.args['hf_token'],
 			)
-			
-			# From https://github.com/ModelTC/Qwen-Image-Lightning/blob/main/generate_with_diffusers.py
-			
-			scheduler = FlowMatchEulerDiscreteScheduler.from_config ({
+		
+		if self.args['lightning_lora'] != '':
+			config = {
 				
 				'base_image_seq_len': 256,
-				'base_shift': math.log (3),  # We use shift=3 in distillation
-				'invert_sigmas': False,
 				'max_image_seq_len': 8192,
-				'max_shift': math.log (3),  # We use shift=3 in distillation
-				'num_train_timesteps': 1000,
+				'base_shift': math.log (3),
+				'max_shift': math.log (3),
+				'invert_sigmas': False,
 				'shift': 1.0,
-				'shift_terminal': None,  # set shift_terminal to None
+				'shift_terminal': None,
 				'stochastic_sampling': False,
 				'time_shift_type': 'exponential',
 				'use_beta_sigmas': False,
@@ -291,16 +363,20 @@ class QwenImage:
 				'use_exponential_sigmas': False,
 				'use_karras_sigmas': False,
 				
-			})
-			
-			pipe = pipe_cls.from_pretrained (
-				self.args['model'],
-				transformer = transformer,
-				scheduler = scheduler,
-				use_safetensors = True,
-				torch_dtype = self.torch_dtype,
-				token = self.args['hf_token'],
-			)
+			}
+		else:
+			config = {}
+		
+		pipe = pipe_cls.from_pretrained (
+			self.args['model'],
+			transformer = transformer,
+			scheduler = self.get_scheduler (config),
+			use_safetensors = True,
+			torch_dtype = self.torch_dtype,
+			token = self.args['hf_token'],
+		)
+		
+		if self.args['lightning_lora'] != '':
 			
 			model_id, weights_path = self.args['lightning_lora'].split (':')
 			
@@ -309,28 +385,8 @@ class QwenImage:
 				weights_path = weights_path,
 			)
 		
-		else:
-			pipe = pipe_cls.from_pretrained (
-				self.args['model'],
-				torch_dtype = self.torch_dtype,
-				use_safetensors = True,
-				token = self.args['hf_token'],
-			)
-		
-		for lora in self.args['lora']:
-			
-			lora = lora.split (':')
-			
-			pipe.load_lora_weights (
-				lora[0],
-				weights_path = lora[1],
-				token = lora[3] if len (lora) == 4 else ''
-			)
-			
-			pipe.fuse_lora (lora_scale = lora[2])
-			pipe.unload_lora_weights ()
-		
 		'''
+		
 		elif self.args['nunchaku_transformer'] != '':
 			
 			transformer = NunchakuQwenImageTransformer2DModel.from_pretrained (self.args['nunchaku_transformer'])
@@ -354,7 +410,20 @@ class QwenImage:
 			
 			else:
 				pipe.enable_sequential_cpu_offload ()
+		
 		'''
+		for lora in self.args['lora']:
+			
+			lora = lora.split (':')
+			
+			pipe.load_lora_weights (
+				lora[0],
+				weights_path = lora[1],
+				token = lora[3] if len (lora) == 4 else ''
+			)
+			
+			pipe.fuse_lora (lora_scale = lora[2])
+			pipe.unload_lora_weights ()
 		
 		pipe = pipe.to (self.device)
 		
@@ -437,5 +506,23 @@ class QwenImage:
 	
 	def get_date (self) -> str:
 		return datetime.today ().strftime ('%Y%m%d%H%M%S%f')
+	
+	def get_prompts (self, prompt_file):
+		
+		prompts = []
+		
+		file = open (prompt_file, 'rb')
+		
+		self.verbose ('Reading prompts file: ' + prompt_file)
+		
+		for line in file:
+			prompts.append (line.strip ().decode ('utf-8'))
+		
+		return prompts
+	
+	def verbose (self, mess):
+		
+		if self.args['verbose']:
+			print (mess)
 
 QwenImage ().load ()

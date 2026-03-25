@@ -14,6 +14,9 @@ class QwenImageGenerate:
 		if self.core.args['lightning_lora'] is None:
 			self.core.args['lightning_lora'] = 'lightx2v/Qwen-Image-2512-Lightning:Qwen-Image-Lightning-4steps-V1.0-bf16.safetensors'
 		
+		if self.core.args['nunchaku_transformer'] is None:
+			self.core.args['nunchaku_transformer'] = 'nunchaku-ai/nunchaku-qwen-image/svdq-fp4_r32-qwen-image-lightningv1.0-4steps.safetensors'
+		
 		if self.core.args['debug'] == 0:
 			self.pipe = self.core.pipe_init (kwargs.pop ('pipeline_class'))
 	

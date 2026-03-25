@@ -16,8 +16,10 @@ class QwenImageEdit:
 			self.core.args['model'] = 'Qwen/Qwen-Image-Edit'
 		
 		if self.core.args['lightning_lora'] is None:
-			self.core.args[
-				'lightning_lora'] = 'lightx2v/Qwen-Image-Edit-2511-Lightning:Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors'
+			self.core.args['lightning_lora'] = 'lightx2v/Qwen-Image-Edit-2511-Lightning:Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors'
+		
+		if self.core.args['nunchaku_transformer'] is None:
+			self.core.args['nunchaku_transformer'] = 'nunchaku-ai/nunchaku-qwen-image-edit/svdq-fp4_r32-qwen-image-edit-lightningv1.0-4steps.safetensors'
 		
 		if self.core.args['debug'] == 0:
 			self.pipe = self.core.pipe_init (kwargs.pop ('pipeline_class'))
@@ -54,25 +56,36 @@ class QwenImageEdit:
 			
 			for (root, directories, files) in os.walk (self.core.args['image'][0]):
 				
+				self.core.verbose ('Reading ' + root + ' folder...')
+				
+				prompt_file = os.path.abspath (os.path.join (root, root + '.txt'))
+				
+				if os.path.exists (prompt_file):
+					
+					self.core.verbose ('Reading prompts file: ' + prompt_file)
+					root_prompts = self.core.get_prompts (prompt_file)
+					
+				else:
+					root_prompts = []
+				
 				for filename in files:
+					
+					self.core.verbose ('Opens ' + os.path.abspath (os.path.join (root, filename)) + ' file...')
 					
 					prompt_file = os.path.abspath (os.path.join (root, filename + '.txt'))
 					
-					if len (self.core.args['prompt']) > 0 or os.path.exists (prompt_file):
+					exists = os.path.exists (prompt_file)
+					
+					if self.core.args['prompt'] or exists:
 						
 						root_file = os.path.join (root, filename)
 						stem = pathlib.Path (filename).stem
 						extension = os.path.splitext (filename)[1]
 						
-						if len (self.core.args['prompt']) == 0:
-							
-							self.core.prompts = []
-							
-							file = open (prompt_file, 'rb')
-							
-							for line in file:
-								self.core.prompts.append (line.strip ().decode ('utf-8'))
-						
+						if exists:
+							self.core.prompts = self.core.get_prompts (prompt_file)
+						elif root_prompts:
+							self.core.prompts = root_prompts
 						else:
 							self.core.prompts = self.core.args['prompt']
 						
@@ -83,6 +96,8 @@ class QwenImageEdit:
 								for i in range (1, len (self.core.args['image'])):
 									
 									for (root2, directories2, files2) in os.walk (self.core.args['image'][i]):
+										
+										self.core.verbose ('Reading ' + root2 + ' folder...')
 										
 										for filename2 in files2:
 											
@@ -118,9 +133,19 @@ class QwenImageEdit:
 			images = []
 			
 			for image in self.core.args['image']:
+				
+				self.core.verbose ('Opens ' + os.path.abspath (image) + ' file...')
 				images.append (load_image (image))
 			
-			self.core.prompts = self.core.args['prompt']
+			prompt_file = os.path.abspath (self.core.args['image'][0] + '.txt')
+			
+			if not self.core.args['prompt'] and os.path.exists (prompt_file):
+				
+				self.core.verbose ('Reading prompts file: ' + prompt_file)
+				self.core.prompts = self.core.get_prompts (prompt_file)
+			
+			else:
+				self.core.prompts = self.core.args['prompt']
 			
 			pipes = self.process_images (images)
 			self.core.save_images (pipes, self.core.args['output_path'], self.core.get_date (), '.jpg')
