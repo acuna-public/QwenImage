@@ -23,7 +23,7 @@ mdurl==0.1.2
 mpmath==1.3.0
 networkx==3.6.1
 numpy==2.4.3
-nunchaku @ https://github.com/nunchaku-ai/nunchaku/releases/download/v1.1.0/nunchaku-1.1.0+torch2.11-cp312-cp312-win_amd64.whl#sha256=9080373495bc5103607faf871152694462b0344ee698940f2f7cc903d383b868
+nunchaku @ https://github.com/nunchaku-ai/nunchaku/releases/download/v1.1.0/nunchaku-1.1.0+torch2.11-cp312-cp312-linux_x86_64.whl
 packaging==26.0
 peft==0.18.1
 pillow==12.1.1
