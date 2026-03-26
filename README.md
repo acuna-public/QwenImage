@@ -1,6 +1,6 @@
 # QwenImage
 
-QwenImage is a CLI version for working with **Qwen Image** and **Qwen Image Edit** models, no more ComfyUI with its clymsy interface, broken nodes and unknown dependencies, just a few CLI strings commands for the same functionality and automate tasks.
+QwenImage is a CLI version for working with **Qwen Image** and **Qwen Image Edit** models, no more ComfyUI with its clymsy interface, broken nodes and unknown dependencies, just a few CLI strings commands for the same functionality and tasks automation.
 
 ## Scopes
 
