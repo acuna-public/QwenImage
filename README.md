@@ -60,7 +60,7 @@ Every image in this folder will be redrawn by given prompt.
       --image "C:\QwenExamples\Persons" \
       --image "C:\QwenExamples\PosesSet1" \
       --image "C:\QwenExamples\PosesSet2" \
-      --prompt "Draw person from first image with pose from second image"
+      --prompt "Draw the person from the first image with pose from the second image"
   ```
 
 Where every image from first folder will be drawn with every image from second folder, and after that with every image from third folder, etc, which can be useful for example while drawing images with different poses sets from different folders.

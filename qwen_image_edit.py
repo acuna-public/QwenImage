@@ -1,50 +1,40 @@
 import os
 import pathlib
-import torch
 
+import torch
 from diffusers.utils import load_image
 
-class QwenImageEdit:
+class Image2Image:
 	
 	pipe = None
 	
-	def __init__ (self, core, **kwargs):
+	def __init__ (self, core):
 		
 		self.core = core
-		
-		if self.core.args['model'] is None:
-			self.core.args['model'] = 'Qwen/Qwen-Image-Edit'
-		
-		if self.core.args['lightning_lora'] is None:
-			self.core.args['lightning_lora'] = 'lightx2v/Qwen-Image-Edit-2511-Lightning:Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors'
-		
-		if self.core.args['nunchaku_transformer'] is None:
-			self.core.args['nunchaku_transformer'] = 'nunchaku-ai/nunchaku-qwen-image-edit/svdq-fp4_r32-qwen-image-edit-lightningv1.0-4steps.safetensors'
-		
-		if self.core.args['debug'] == 0:
-			self.pipe = self.core.pipe_init (kwargs.pop ('pipeline_class'))
 	
 	def process_images (self, images):
 		
 		pipes = []
 		
-		for prompt in self.core.prompts:
+		for prompt in self.core.prep_prompts ():
 			
 			if self.core.args['debug'] == 0:
 				
 				with torch.inference_mode ():
-					pipes.append (self.pipe ({
+					pipes.append (self.core.pipe (
 						
-						'image': images,
-						'prompt': self.core.process_prompt (prompt),
-						'generator': torch.Generator (device = self.core.device).manual_seed (self.core.args['seed']),
-						'true_cfg_scale': self.core.true_cfg_scale,
-						'negative_prompt': self.core.args['negative_prompt'],
-						'num_inference_steps': self.core.num_inference_steps,
-						'guidance_scale': self.core.args['guidance_scale'],
-						'num_images_per_prompt': self.core.args['images_per_prompt'],
+						image = images,
+						prompt = self.core.process_prompt (prompt),
+						generator = torch.Generator (
+							device = self.core.device
+						).manual_seed (self.core.args['seed']),
+						true_cfg_scale = self.core.true_cfg_scale,
+						negative_prompt = self.core.args['negative_prompt'],
+						num_inference_steps = self.core.num_inference_steps,
+						guidance_scale = self.core.args['guidance_scale'],
+						num_images_per_prompt = self.core.args['images_per_prompt'],
 						
-					}))
+					))
 			else:
 				pipes.append ({ 'images': [0, 1] })
 		
@@ -64,13 +54,13 @@ class QwenImageEdit:
 					
 					self.core.verbose ('Reading prompts file: ' + prompt_file)
 					root_prompts = self.core.get_prompts (prompt_file)
-					
+				
 				else:
 					root_prompts = []
 				
 				for filename in files:
 					
-					self.core.verbose ('Opens ' + os.path.abspath (os.path.join (root, filename)) + ' file...')
+					self.core.verbose ('Reading ' + os.path.abspath (os.path.join (root, filename)) + ' file...')
 					
 					prompt_file = os.path.abspath (os.path.join (root, filename + '.txt'))
 					
@@ -114,8 +104,11 @@ class QwenImageEdit:
 											if not os.path.exists (folder_path):
 												os.makedirs (folder_path)
 											
-											self.core.save_images (pipes, folder_path, stem + '_' + stem2, extension)
-										
+											self.core.save_images (
+												pipes,
+												folder_path, stem + '_' + stem2 + extension
+											)
+											
 										break
 							
 							else:
@@ -124,7 +117,11 @@ class QwenImageEdit:
 									self.core.load_image (root_file)
 								])
 								
-								self.core.save_images (pipes, self.core.args['output_path'], self.core.get_date (), '.jpg')
+								self.core.save_images (
+									pipes,
+									self.core.args['output_path'],
+									self.core.get_date () + '.jpg'
+								)
 				
 				break
 		
@@ -134,7 +131,7 @@ class QwenImageEdit:
 			
 			for image in self.core.args['image']:
 				
-				self.core.verbose ('Opens ' + os.path.abspath (image) + ' file...')
+				self.core.verbose ('Reading ' + os.path.abspath (image) + ' file...')
 				images.append (load_image (image))
 			
 			prompt_file = os.path.abspath (self.core.args['image'][0] + '.txt')
@@ -148,4 +145,9 @@ class QwenImageEdit:
 				self.core.prompts = self.core.args['prompt']
 			
 			pipes = self.process_images (images)
-			self.core.save_images (pipes, self.core.args['output_path'], self.core.get_date (), '.jpg')
+			
+			self.core.save_images (
+				pipes,
+				self.core.args['output_path'],
+				self.core.get_date () + '.jpg'
+			)
